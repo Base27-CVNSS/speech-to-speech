@@ -6,279 +6,354 @@ colorTo: purple
 sdk: docker
 app_port: 7860
 pinned: false
-short_description: Voice chat over WebSocket or WebRTC against HF speech-to-speech
+short_description: Trò chuyện giọng nói thời gian thực qua WebSocket hoặc WebRTC với Speech-to-Speech
 hf_oauth: true
 hf_oauth_expiration_minutes: 10080
 ---
 
-# Realtime Voice Demo
+# 🎙️ Demo giọng nói thời gian thực
 
-Browser voice-chat UI for the
-[huggingface/speech-to-speech](https://github.com/huggingface/speech-to-speech)
-backend, speaking the OpenAI Realtime **GA** protocol over **WebSocket**
-(default) or **WebRTC** (Settings → Transport, env-pinned deploys only — see
-[WebRTC transport](#webrtc-transport)).
+Giao diện hội thoại bằng giọng nói trên trình duyệt dành cho backend [`speech-to-speech`](https://github.com/Base27-CVNSS/speech-to-speech), sử dụng giao thức **OpenAI Realtime GA** qua **WebSocket** hoặc **WebRTC**.
 
-Both choices run one `RealtimeSession` adapter over the pinned official
-`@openai/agents` package's stock transport classes. The adapter keeps demo-only
-queue, audio, visualization, device, camera, and metering behavior out of the
-protocol implementation.
+Demo sử dụng `RealtimeSession` của gói `@openai/agents` đã khóa phiên bản. Các chức năng đặc thù của giao diện như hàng đợi, âm thanh, trực quan hóa, chọn thiết bị, camera và đo thời lượng được giữ bên ngoài lớp giao thức để không làm lẫn logic UI với Realtime API.
 
-## Quick start (local)
+---
 
-1. **Start the speech-to-speech backend** (from the repo root;
-   see the [backend README](https://github.com/huggingface/speech-to-speech/blob/main/src/speech_to_speech/api/openai_realtime/README.md)
-   for more model combinations):
+## 🚀 Chạy nhanh trên máy cục bộ
 
-   ```bash
-   uv run speech-to-speech serve \
-     --stt parakeet-tdt \
-     --llm_backend transformers \
-     --tts kokoro \
-     --model_name "Qwen/Qwen3-4B-Instruct-2507" \
-     --llm_device mps \
-     --llm_torch_dtype float16 \
-     --enable_live_transcription
-   ```
+### 1. Khởi động backend Speech-to-Speech
 
-   The realtime server listens on `ws://localhost:8765/v1/realtime` by default
-   (`--host` / `--port` to change).
+Từ thư mục gốc của repository:
 
-2. **Install the pinned browser SDK and start this app**, pointing it at the
-   backend with `SPEECH_TO_SPEECH_URL`:
+```bash
+uv run speech-to-speech serve \
+  --stt parakeet-tdt \
+  --llm_backend transformers \
+  --tts kokoro \
+  --model_name "Qwen/Qwen3-4B-Instruct-2507" \
+  --llm_device mps \
+  --llm_torch_dtype float16 \
+  --enable_live_transcription
+```
 
-   ```bash
-   npm ci --prefix demo
-   uv pip install -r demo/requirements.txt
-   export SPEECH_TO_SPEECH_URL=ws://localhost:8765/v1/realtime
-   export SERPER_API_KEY=...   # optional; web search is disabled without it
-   export STARTUP_GREETING=... # optional; empty disables the automatic greeting
-   uv run uvicorn --app-dir demo server:app --reload --port 7860
-   ```
+Mặc định server Realtime lắng nghe tại:
 
-   Or with Docker:
+```text
+ws://localhost:8765/v1/realtime
+```
 
-   ```bash
-   docker build -t s2s-demo demo/
-   docker run -p 7860:7860 -e SPEECH_TO_SPEECH_URL=ws://host.docker.internal:8765/v1/realtime s2s-demo
-   ```
+Có thể đổi bằng `--host` và `--port`.
 
-   > **Docker + host backend: WebSocket and WebRTC need different hostnames.**
-   > The two transports dial the backend from different network namespaces:
-   >
-   > - **WebRTC** is dialed **server-side** — the browser POSTs its SDP offer to
-   >   the demo's `/api/calls` proxy, which forwards it from *inside the
-   >   container*. There `host.docker.internal` resolves to your host, so the
-   >   command above works.
-   > - **WebSocket** is dialed **client-side** — the demo hands the URL straight
-   >   to the browser, which opens the socket itself. The browser runs on your
-   >   *host*, where `host.docker.internal` is not a real DNS name, so the
-   >   connection never reaches the backend and the server logs nothing.
-   >
-   > A single Docker `SPEECH_TO_SPEECH_URL` can therefore only make one transport
-   > work at a time (`localhost:8765` for WebSocket, `host.docker.internal:8765`
-   > for WebRTC). To exercise **both** without swapping the env, run the demo
-   > **without Docker** (the `uvicorn` command above) so host and container
-   > namespaces collapse — then `ws://localhost:8765/v1/realtime` works for both.
+### 2. Cài dependency cho demo
 
-3. Open <http://localhost:7860/>, click the orb, allow the mic, talk.
+```bash
+npm ci --prefix demo
+uv pip install -r demo/requirements.txt
+```
 
-> Browsers require **HTTPS or `localhost`** for `getUserMedia()` (mic + camera).
-> `127.0.0.1` and `localhost` both work; plain `http://192.168.x.y` does NOT.
+Khai báo endpoint backend:
 
-Smoke-test the backend from the shell:
+```bash
+export SPEECH_TO_SPEECH_URL=ws://localhost:8765/v1/realtime
+```
+
+Các biến tùy chọn:
+
+```bash
+export SERPER_API_KEY=...    # tìm kiếm web; không có key thì tool bị tắt
+export STARTUP_GREETING=...  # lời chào tự động; để rỗng để tắt
+```
+
+Khởi chạy ứng dụng:
+
+```bash
+uv run uvicorn --app-dir demo server:app --reload --port 7860
+```
+
+Mở:
+
+```text
+http://localhost:7860/
+```
+
+Nhấn vào vòng tròn trung tâm, cấp quyền microphone và bắt đầu nói.
+
+> Trình duyệt yêu cầu **HTTPS hoặc `localhost`** để dùng `getUserMedia()` cho microphone/camera. HTTP thường trên địa chỉ LAN như `http://192.168.x.x` có thể bị chặn quyền thiết bị.
+
+---
+
+## 🐳 Chạy bằng Docker
+
+```bash
+docker build -t s2s-demo demo/
+docker run \
+  -p 7860:7860 \
+  -e SPEECH_TO_SPEECH_URL=ws://host.docker.internal:8765/v1/realtime \
+  s2s-demo
+```
+
+### Lưu ý Docker: WebSocket và WebRTC dùng namespace mạng khác nhau
+
+- **WebRTC:** quá trình bắt tay SDP được proxy phía server, do đó `host.docker.internal` có thể trỏ tới máy host từ bên trong container.
+- **WebSocket:** browser mở socket trực tiếp. Browser chạy trên máy host, nên `host.docker.internal` không nhất thiết là hostname hợp lệ ở phía browser.
+
+Nếu muốn kiểm thử cả WebSocket lẫn WebRTC mà không phải đổi biến môi trường, cách đơn giản nhất là chạy demo trực tiếp bằng `uvicorn` thay vì Docker.
+
+---
+
+## 🔎 Kiểm tra nhanh backend
+
+Có thể dùng `websocat`:
 
 ```bash
 websocat ws://localhost:8765/v1/realtime
-# -> you should get a session.created event back immediately
 ```
 
-## How it works
+Nếu backend hoạt động, server sẽ trả về sự kiện `session.created` ngay sau khi kết nối.
 
-1. The adapter creates an official Agents SDK `RealtimeSession` with the stock
-   WebSocket transport on the configured `/v1/realtime` URL.
-2. The SDK performs `session.update` using the OpenAI Realtime **GA** schema.
-3. The SDK streams mic audio as PCM16 24 kHz mono base64 chunks
-   (`input_audio_buffer.append`, one frame every ~40 ms).
-4. The browser keeps a bounded, in-memory copy of those sent frames and uses
-   the server VAD boundaries to add replayable user recordings to conversation
-   history. No recording is uploaded or persisted separately.
-5. Server pushes `response.output_audio.delta` (PCM16 24 kHz mono base64)
-   and transcript deltas.
+---
 
-The backend exposes one concurrent session per pipeline unit
-(`--num_pipelines` to serve more).
+## 🧠 Demo hoạt động như thế nào?
 
-## WebRTC transport
+1. Adapter tạo một `RealtimeSession` bằng transport WebSocket hoặc WebRTC chính thức từ Agents SDK.
+2. SDK gửi `session.update` theo schema OpenAI Realtime GA.
+3. Với WebSocket, microphone được stream thành PCM16 24 kHz mono, đóng gói base64 bằng `input_audio_buffer.append`.
+4. Browser giữ một bộ đệm giới hạn của các frame đã gửi để có thể phát lại đoạn giọng nói người dùng trong lịch sử hội thoại.
+5. Backend trả về transcript và audio theo luồng.
+6. Giao diện cập nhật trạng thái, hiệu ứng orb, lịch sử, tool call và âm thanh theo thời gian thực.
 
-With `SPEECH_TO_SPEECH_URL` set, **Settings → Transport** offers WebRTC as an
-alternative to the WebSocket. Same conversation, different plumbing:
+Backend phục vụ số phiên đồng thời phụ thuộc số pipeline được cấu hình bằng:
 
-1. The SDK's stock WebRTC transport adds the browser mic track and its data
-   channel to an `RTCPeerConnection` and POSTs the SDP offer to the same-origin
-   `/api/calls` proxy, which forwards it to the backend's
-   `POST /v1/realtime/calls` (the OpenAI GA handshake). The proxy exists
-   because the s2s server has no CORS middleware — and it forwards **only**
-   to the env-pinned URL, never to a client-supplied one, so it can't be used
-   as an open proxy. That's why the toggle is locked to WebSocket when the
-   URL isn't pinned (user-typed URLs, LB mode).
-2. Only the handshake goes through the proxy: the negotiated audio (Opus RTP
-   both ways) and the data channel flow directly browser ↔ backend.
-3. JSON events on the data channel are the same GA protocol as the WebSocket,
-   minus the audio: mic audio rides the media track (never
-   `input_audio_buffer.append`, which the backend rejects over WebRTC), and
-   the assistant's voice arrives as a remote audio track (never
-   `response.output_audio.delta`). Barge-in flushing is server-side.
+```text
+--num_pipelines
+```
 
-Backend requirement: the `webrtc` extra
-(`pip install "speech-to-speech[webrtc]"`), otherwise `/v1/realtime/calls`
-answers 501 and the handshake fails with a clear message.
+---
 
-Caveats vs. WebSocket:
+## 🔌 WebSocket và WebRTC
 
-- **User recording replay**: conversation-history recordings currently use the
-  exact PCM frames sent through `input_audio_buffer.append`, so they are
-  available only on the WebSocket transport.
-- **NAT**: host ICE candidates only by default — fine when browser and backend
-  are on the same machine/LAN. Across the internet, set `RTC_ICE_SERVERS` on
-  *this* app (a JSON list of `RTCIceServer` dicts, or comma-separated
-  STUN/TURN URLs; served to the browser via `/api/config`) and
-  `SPEECH_TO_SPEECH_ICE_SERVERS` on the backend. There is no TURN relay
-  fallback, so symmetric-NAT setups may still not connect.
-- **Noise gate**: implemented in the WebSocket capture worklet, so it's
-  hidden on WebRTC — the raw mic track (with the browser's own
-  `noiseSuppression`) is sent instead.
-- **Camera snapshots** are re-encoded to fit one data-channel message
-  (~60 KB), so the model may see a smaller frame than over WebSocket.
-- **Load-balancer mode is WebSocket-only** for now.
+### WebSocket
 
-## Connecting to a backend
+Phù hợp nhất khi:
 
-Three modes, picked by env (`/api/config` tells the client which one is active):
+- phát triển local;
+- cần debug event JSON dễ dàng;
+- cần phát lại bản ghi giọng nói người dùng trong lịch sử;
+- dùng chế độ load balancer hiện tại.
 
-- **`SPEECH_TO_SPEECH_URL` env** — the mode you want for local use, and the
-  highest priority. The browser connects **directly** to this realtime
-  WebSocket URL; it's shown read-only in Settings. Setting it disables the
-  load-balancer logic entirely (no `/api/session` proxy, no queue, no
-  metering, no sign-in). Unlike the LB address it is not a secret. Accepts a
-  full `ws(s)://host/v1/realtime` URL or a bare host like `localhost:8765`
-  (the app adds `/v1/realtime`).
-- **Neither env set** — **Settings → Speech-to-speech server URL**: paste a
-  full connect URL or a bare host, and the browser connects to it directly.
-- **`LOAD_BALANCER_URL` env** — multi-compute deployments only: the browser
-  POSTs the same-origin `/api/session` proxy, the server forwards to the LB,
-  and the browser dials the per-session compute URL the LB hands back. The LB
-  address never reaches the browser; the Settings URL field is hidden. On
-  OAuth-enabled Spaces, the proxy forwards the signed-in user's HF access token
-  to the LB through `X-Reachy-Mini-Authorization` so the backend can attribute
-  usage. The token stays server-side; anonymous requests include no credential.
+Luồng âm thanh được gửi bằng event:
 
-| `SPEECH_TO_SPEECH_URL` | `LOAD_BALANCER_URL` | `SPACE_ID` | Connection | URL field | Transport | Metering |
-|:---:|:---:|:---:|---|---|---|---|
-| ✅ | any | any | direct → pinned URL | visible, locked | WS or WebRTC | off |
-| – | – | any | direct → user URL | editable | WS only | off |
-| – | ✅ | ✅ | LB proxy | hidden | WS only | **on** |
-| – | ✅ | – | LB proxy | hidden | WS only | off |
+```text
+input_audio_buffer.append
+```
 
-**Settings → Restart** reconnects with the current voice, instructions and URL.
+và nhận lại qua các audio delta.
 
-## Startup greeting
+### WebRTC
 
-By default, each new connection creates one hidden user item asking the model
-for a brief greeting, then requests a response. Besides opening the conversation
-naturally, this warms the same prompt prefix used by the first spoken turn.
+WebRTC có thể được chọn trong **Cài đặt → Transport** khi URL backend được cố định bằng biến môi trường.
 
-Set `STARTUP_GREETING` to customize the hidden prompt, or set it to an empty
-value to disable automatic generation. The adapter sends it once through the
-new `RealtimeSession` after connection.
+Quy trình:
 
-## Tools
+1. Browser tạo `RTCPeerConnection`.
+2. Microphone được thêm dưới dạng media track.
+3. SDP offer được POST tới `/api/calls`.
+4. Demo proxy offer tới backend `POST /v1/realtime/calls`.
+5. Sau khi bắt tay, audio RTP và data channel chạy trực tiếp giữa browser và backend.
 
-The assistant can call two tools mid-conversation (toggle them from the **Tools**
-button, top-right):
+Cài extra WebRTC cho backend:
 
-- **Web search** — Google results via Serper.dev, proxied server-side so the key
-  never reaches the browser. Set `SERPER_API_KEY` as an env var / Space secret.
-  Without it, the tool is disabled unless the user pastes their own key in the
-  Tools panel.
-- **Camera** — while enabled, a live self-view shows bottom-left; when the model
-  calls the tool, the current frame is sent to the vision-language model so it can
-  see what you're showing it.
+```bash
+pip install "speech-to-speech[webrtc]"
+```
 
-## Usage limits (deployed Space only)
+Nếu thiếu dependency, endpoint `/v1/realtime/calls` sẽ không hoạt động.
 
-Conversation time is metered per UTC day by sign-in tier (see `limiter.py` /
-`auth.py`), but **only on the deployed Space** — metering turns on only when BOTH
-`LOAD_BALANCER_URL` and `SPACE_ID` (injected automatically by the HF Space
-runtime) are present. Running locally — even with `LOAD_BALANCER_URL` exported —
-leaves the app unmetered. Tunable via env:
+### Giới hạn WebRTC hiện tại
 
-| Env | Default | What |
-|-----|---------|------|
-| `LIMIT_ANON_SEC` | `300` | Daily seconds for anonymous visitors (5 min) |
-| `LIMIT_FREE_SEC` | `600` | Daily seconds for signed-in non-PRO users (10 min) |
-| `UNLIMITED_ORGS` | _(adds to defaults)_ | Extra HF org names whose members get **unlimited** usage, like PRO |
-| `USAGE_HASH_SECRET` | _(random)_ | HMAC secret for hashing identity keys + signing the anon cookie |
+- Phát lại bản ghi người dùng trong lịch sử chỉ đầy đủ trên WebSocket.
+- NAT phức tạp có thể cần STUN/TURN.
+- Noise gate riêng của demo WebSocket không áp dụng nguyên trạng cho media track WebRTC.
+- Snapshot camera phải nén nhỏ hơn do giới hạn message data-channel.
+- Chế độ load balancer hiện ưu tiên WebSocket.
 
-PRO members are always unlimited. Members of `cerebras`, `HuggingFaceM4`,
-`smolagents`, and `pollen-robotics` are unlimited out of the box (shown as
-"Team", not "PRO"); set `UNLIMITED_ORGS=my-team` to add more. Matched
-case-insensitively against the user's organisations from HF OAuth.
+---
 
-## Settings (stored in `localStorage`)
+## 🌐 Ba chế độ kết nối backend
 
-| Key | What |
-|-----|------|
-| Speech-to-speech server URL | Direct realtime WebSocket URL (hidden/locked when pinned by env) |
-| Transport | WebSocket (default) or WebRTC; selectable only with an env-pinned URL |
-| Microphone | Input device for capture. Applies on the next conversation / Restart. |
-| Speakers | Output device for assistant audio. Chrome/Edge can switch live via `AudioContext.setSinkId`; other browsers keep the system default. |
-| Voice | Qwen3-TTS speaker name (Aiden, Ryan, Dylan, Eric, Ono_Anna, Serena, Sohee, Uncle_Fu, Vivian) |
-| Instructions | System prompt sent in `session.update` once the connection opens |
+### 1. `SPEECH_TO_SPEECH_URL`
 
-LocalStorage keys are namespaced `s2s.ws.*` (plus `s2s.transport` for the
-transport pick, and `s2s.audio.inputId` / `s2s.audio.outputId` for devices).
+Đây là lựa chọn ưu tiên cho local/self-hosted:
 
-## Files
+```bash
+export SPEECH_TO_SPEECH_URL=ws://localhost:8765/v1/realtime
+```
 
-| File | Role |
-|------|------|
-| `index.html` | Single page, orb + settings modal (identical UI to the WebRTC app) |
-| `main.js` | State machine, settings, tools, camera, noise-gate UI wiring |
-| `ui/chat.js` | `ChatView`: history panel, ephemeral bubbles, transcript/tool streaming, user recording replay |
-| `ui/account.js` | `Account`: HF login chip + popover, daily-limit modal |
-| `ui/dom.js` | Shared helpers: `$`, `escHtml`, `truncateError`, `DEBUG` |
-| `auth.py` | HF OAuth + per-request identity (tier, hashed keys) |
-| `limiter.py` | SQLite per-day talk-time budget (chunked server-clock reservation) |
-| `s2s-realtime-client.js` | Narrow demo adapter around one Agents SDK `RealtimeSession` and the stock WebSocket/WebRTC transports |
-| `package.json` / `package-lock.json` | Exact official Agents SDK and browser-test dependency pins |
-| `ws/codec.js` | base64 <-> PCM helpers + transcript extraction (pure) |
-| `ws/user-audio-recorder.js` | Bounded sent-PCM buffer + VAD slicing + browser-playable WAV wrapping |
-| `ws/orb-visualizer.js` | `OrbVisualiser`: FFT bands -> orb CSS custom properties |
-| `worklets/mic-capture.js` | AudioWorklet: 48 kHz Float32 -> 24 kHz Int16 PCM, posts ~40 ms chunks |
-| `worklets/audio-playback.js` | AudioWorklet: 24 kHz Float32 ring buffer -> 48 kHz, linear interp, fade in/out |
-| `style.css` | Orb animations, layout, dark theme (verbatim from the WebRTC app) |
+Browser kết nối trực tiếp tới URL này. Khi được khai báo bằng môi trường, trường URL trong Settings sẽ bị khóa để tránh client tự đổi endpoint.
 
-## Audio pipeline notes
+### 2. Không khai báo URL môi trường
 
-- **Input**: `getUserMedia({ echoCancellation, noiseSuppression, autoGainControl })`
-  feeds the `mic-capture` worklet at the `AudioContext` rate. The worklet
-  resamples to 24 kHz (boxcar lowpass + decimation on the 48 -> 24 fast
-  path, linear interpolation fallback for odd rates) and packs Int16 LE.
-- **User replay**: the WebSocket client retains only a bounded copy of PCM it
-  actually sends. `speech_started` / `speech_stopped` timestamps select each
-  utterance, which is wrapped as an in-memory WAV and attached to the user row.
-  Starting playback temporarily mutes outgoing mic audio to prevent feedback.
-- **Output**: `response.output_audio.delta` decodes to Int16 -> Float32
-  and is posted to the `audio-playback` worklet. The worklet maintains a
-  per-context ring buffer, linearly interpolates 24 -> 48, and applies
-  short 32-frame fades on entry/exit to suppress clicks.
-- **Barge-in**: when the server VAD detects user speech mid-response
-  (`input_audio_buffer.speech_started` while `ai-speaking`), the client
-  posts `{ kind: "clear" }` to the playback worklet to wipe the queue
-  immediately. The server itself cancels the in-flight response.
+Người dùng có thể nhập endpoint tại:
 
-## Credits
+```text
+Settings → Speech-to-speech server URL
+```
 
-- Backend: [huggingface/speech-to-speech](https://github.com/huggingface/speech-to-speech)
-- UI verbatim from `amir-tfrere/minimal-conversation-app-s2s-backend` (Pollen Robotics × Hugging Face)
+Chế độ này phù hợp phát triển/thử nghiệm và chủ yếu dùng WebSocket.
+
+### 3. `LOAD_BALANCER_URL`
+
+Dành cho triển khai nhiều compute replica. Demo gọi `/api/session`, server proxy tới load balancer và nhận lại endpoint phiên cụ thể.
+
+| `SPEECH_TO_SPEECH_URL` | `LOAD_BALANCER_URL` | Kết nối | URL UI | Transport | Metering |
+|:---:|:---:|---|---|---|---|
+| ✅ | bất kỳ | trực tiếp tới URL cố định | hiện, chỉ đọc | WS/WebRTC | tắt |
+| – | – | trực tiếp tới URL người dùng | chỉnh sửa | WS | tắt |
+| – | ✅ | qua LB proxy | ẩn | WS | tùy cấu hình |
+
+---
+
+## 👋 Lời chào khởi động
+
+Khi tạo kết nối mới, demo có thể tạo một item ẩn yêu cầu model phát lời chào ngắn. Việc này đồng thời làm nóng prefix/prompt trước lượt nói đầu tiên.
+
+Tùy chỉnh:
+
+```bash
+export STARTUP_GREETING="Hãy chào người dùng bằng tiếng Việt, ngắn gọn và tự nhiên."
+```
+
+Tắt hoàn toàn:
+
+```bash
+export STARTUP_GREETING=""
+```
+
+---
+
+## 🧰 Công cụ trong hội thoại
+
+Demo có thể bật/tắt công cụ trong giao diện.
+
+### 🔎 Tìm kiếm web
+
+Kết quả Google được truy vấn qua Serper.dev và proxy phía server để API key không lộ ra browser.
+
+```bash
+export SERPER_API_KEY=...
+```
+
+### 📷 Camera
+
+Khi bật camera:
+
+- browser hiển thị self-view;
+- model có thể gọi tool chụp frame hiện tại;
+- ảnh được gửi tới vision-language model để phân tích nội dung người dùng đang cho xem.
+
+---
+
+## 🎚️ Các thiết lập được lưu trong `localStorage`
+
+| Thiết lập | Chức năng |
+|---|---|
+| Speech-to-speech server URL | endpoint Realtime WebSocket |
+| Transport | WebSocket hoặc WebRTC |
+| Microphone | thiết bị thu âm đầu vào |
+| Speakers | thiết bị phát âm thanh đầu ra |
+| Voice | giọng Qwen3-TTS |
+| Instructions | system prompt gửi trong `session.update` |
+
+Các khóa lưu trữ dùng namespace `s2s.ws.*`, cùng một số khóa âm thanh/transport riêng.
+
+---
+
+## 🔐 Quyền riêng tư và bảo mật
+
+- Microphone/camera chỉ hoạt động khi người dùng cấp quyền trình duyệt.
+- API key tìm kiếm web nên đặt phía server bằng biến môi trường/secret.
+- Không nhúng khóa bí mật vào `main.js` hoặc HTML công khai.
+- Khi dùng WebRTC proxy, backend đích phải được cố định từ môi trường; không biến proxy thành open proxy cho URL tùy ý.
+- Triển khai Internet cần HTTPS, auth, rate limiting và chính sách CORS phù hợp.
+
+---
+
+## 📊 Hạn mức sử dụng khi triển khai
+
+Metering chỉ bật trong cấu hình triển khai có load balancer/Space phù hợp. Local không tự áp hạn mức này.
+
+Một số biến môi trường:
+
+| Biến | Mặc định | Ý nghĩa |
+|---|---:|---|
+| `LIMIT_ANON_SEC` | `300` | số giây/ngày cho khách ẩn danh |
+| `LIMIT_FREE_SEC` | `600` | số giây/ngày cho tài khoản miễn phí |
+| `UNLIMITED_ORGS` | bổ sung | danh sách tổ chức được dùng không giới hạn |
+| `USAGE_HASH_SECRET` | ngẫu nhiên | secret HMAC cho định danh/hạn mức |
+
+---
+
+## 🗂️ Các tệp chính
+
+| Tệp | Vai trò |
+|---|---|
+| `index.html` | giao diện một trang, orb và modal cài đặt |
+| `main.js` | state machine UI, settings, tools, camera, noise gate |
+| `ui/chat.js` | lịch sử, bubble, transcript, tool streaming |
+| `ui/account.js` | đăng nhập HF và UI hạn mức |
+| `ui/dom.js` | helper DOM dùng chung |
+| `auth.py` | HF OAuth và nhận diện người dùng |
+| `limiter.py` | ngân sách thời lượng theo ngày bằng SQLite |
+| `s2s-realtime-client.js` | adapter quanh `RealtimeSession` |
+| `ws/codec.js` | chuyển đổi base64 ↔ PCM |
+| `ws/user-audio-recorder.js` | bộ đệm và phát lại audio người dùng |
+| `ws/orb-visualizer.js` | FFT → biến CSS của orb |
+| `worklets/mic-capture.js` | AudioWorklet thu microphone |
+| `worklets/audio-playback.js` | AudioWorklet phát audio assistant |
+| `style.css` | bố cục, animation và dark theme |
+
+---
+
+## 🇻🇳 Gợi ý Việt hóa giao diện
+
+Khi dịch UI, **không dịch** các giá trị kỹ thuật như:
+
+```text
+WebSocket
+WebRTC
+VAD
+STT
+TTS
+LLM
+session.update
+response.create
+input_audio_buffer.append
+/v1/realtime
+```
+
+Chỉ dịch nhãn người dùng nhìn thấy, ví dụ:
+
+| English | Tiếng Việt |
+|---|---|
+| Tap to start | Nhấn để bắt đầu |
+| End | Kết thúc |
+| Conversation | Hội thoại |
+| Settings | Cài đặt |
+| About | Giới thiệu |
+| Microphone | Microphone |
+| Speakers | Loa |
+| Voice | Giọng nói |
+| Instructions | Chỉ dẫn hệ thống |
+| Restart | Kết nối lại |
+| Join now | Tham gia ngay |
+| Leave queue | Rời hàng đợi |
+
+Cách này giữ nguyên tương thích giao thức nhưng mang lại trải nghiệm tiếng Việt tự nhiên và dễ bảo trì khi đồng bộ upstream.
+
+---
+
+## 📜 Nguồn và giấy phép
+
+Demo là một phần của dự án Speech-to-Speech của Hugging Face. Bản Việt hóa tại `Base27-CVNSS/speech-to-speech` giữ nguyên cấu trúc kỹ thuật và ghi công upstream.
+
+Xem giấy phép tại [`../LICENSE`](../LICENSE).
